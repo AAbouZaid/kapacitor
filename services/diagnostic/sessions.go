@@ -3,6 +3,7 @@ package diagnostic
 import (
 	"bytes"
 	"errors"
+	"net/http"
 	"sync"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 type SessionsStore interface {
-	Create(w WriteFlusher, contentType string, tags []tag) *Session
+	Create(w http.ResponseWriter, contentType string, tags []tag) *Session
 	Delete(s *Session) error
 	Each(func(*Session))
 }
@@ -20,15 +21,20 @@ type sessionsStore struct {
 	sessions map[uuid.UUID]*Session
 }
 
-//func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags []tag) *Session {
-func (kv *sessionsStore) Create(w WriteFlusher, contentType string, tags []tag) *Session {
+func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags []tag) *Session {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
-	// type assert here
+
+	flusher, ok := w.(http.Flusher)
+	var wf WriteFlusher = &noopWriteFlusher{w: w}
+	if ok {
+		wf = &httpWriteFlusher{w: w, f: flusher}
+	}
+
 	s := &Session{
 		id:          uuid.New(),
 		tags:        tags,
-		w:           w,
+		w:           wf,
 		contentType: contentType,
 	}
 
@@ -55,43 +61,6 @@ func (kv *sessionsStore) Each(fn func(*Session)) {
 	defer kv.mu.RUnlock()
 	for _, s := range kv.sessions {
 		fn(s)
-	}
-}
-
-type sessionsLogger struct {
-	store   SessionsStore
-	context []Field
-}
-
-func (s *sessionsLogger) Error(msg string, ctx ...Field) {
-	s.store.Each(func(sn *Session) {
-		sn.Error(msg, s.context, ctx)
-	})
-}
-
-func (s *sessionsLogger) Warn(msg string, ctx ...Field) {
-	s.store.Each(func(sn *Session) {
-		sn.Warn(msg, s.context, ctx)
-	})
-}
-
-func (s *sessionsLogger) Debug(msg string, ctx ...Field) {
-	s.store.Each(func(sn *Session) {
-		sn.Warn(msg, s.context, ctx)
-	})
-}
-
-func (s *sessionsLogger) Info(msg string, ctx ...Field) {
-	s.store.Each(func(sn *Session) {
-		sn.Info(msg, s.context, ctx)
-	})
-}
-
-func (s *sessionsLogger) With(ctx ...Field) Logger {
-	// TODO: this needs some kind of locking
-	return &sessionsLogger{
-		store:   s.store,
-		context: append(s.context, ctx...),
 	}
 }
 
@@ -144,11 +113,8 @@ func (s *Session) Log(now time.Time, level, msg string, context, fields []Field)
 	default:
 		writeLogfmt(&s.buf, now, level, msg, context, fields)
 	}
-	// write data
 	s.w.Write(s.buf.Bytes())
-	// reset buffer
 	s.buf.Reset()
-	// flush chunk
 	s.w.Flush()
 }
 
@@ -179,4 +145,28 @@ Loop:
 	}
 
 	return len(tags) == ctr
+}
+
+type noopWriteFlusher struct {
+	w http.ResponseWriter
+}
+
+func (h *noopWriteFlusher) Write(buf []byte) (int, error) {
+	return h.w.Write(buf)
+}
+func (h *noopWriteFlusher) Flush() error {
+	return nil
+}
+
+type httpWriteFlusher struct {
+	w http.ResponseWriter
+	f http.Flusher
+}
+
+func (h *httpWriteFlusher) Write(buf []byte) (int, error) {
+	return h.w.Write(buf)
+}
+func (h *httpWriteFlusher) Flush() error {
+	h.f.Flush()
+	return nil
 }

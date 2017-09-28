@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strconv"
 	"testing"
@@ -439,7 +440,7 @@ func TestSessionsLoggerWithoutContext(t *testing.T) {
 	service := diagnostic.NewSessionService()
 	// TODO: we need ths?
 	_ = service.NewLogger()
-	session := service.SessionsStore.Create(&writeFlusher{buf: buf}, "application/json", nil)
+	session := service.SessionsStore.Create(&httpResponseWriter{buf: buf}, "application/json", nil)
 	defer service.SessionsStore.Delete(session)
 
 	tests := []struct {
@@ -791,14 +792,16 @@ func jsonStr(o interface{}) (string, error) {
 	return string(b), err
 }
 
-type writeFlusher struct {
+type httpResponseWriter struct {
 	buf *bytes.Buffer
 }
 
-func (w *writeFlusher) Write(b []byte) (int, error) {
+func (w *httpResponseWriter) Header() http.Header {
+	return http.Header{}
+}
+
+func (w *httpResponseWriter) Write(b []byte) (int, error) {
 	return w.buf.Write(b)
 }
 
-func (w *writeFlusher) Flush() error {
-	return nil
-}
+func (w *httpResponseWriter) WriteHeader(n int) {}

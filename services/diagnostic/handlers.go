@@ -38,63 +38,6 @@ import (
 	plog "github.com/prometheus/common/log"
 )
 
-type Logger interface {
-	Error(msg string, ctx ...Field)
-	Warn(msg string, ctx ...Field)
-	Debug(msg string, ctx ...Field)
-	Info(msg string, ctx ...Field)
-	With(ctx ...Field) Logger
-}
-
-type MultiLogger struct {
-	loggers []Logger
-}
-
-func NewMultiLogger(loggers ...Logger) *MultiLogger {
-	return &MultiLogger{
-		loggers: loggers,
-	}
-}
-
-func (l *MultiLogger) Error(msg string, ctx ...Field) {
-	for _, logger := range l.loggers {
-		logger.Error(msg, ctx...)
-	}
-}
-
-func (l *MultiLogger) Warn(msg string, ctx ...Field) {
-	for _, logger := range l.loggers {
-		logger.Warn(msg, ctx...)
-	}
-}
-
-func (l *MultiLogger) Debug(msg string, ctx ...Field) {
-	for _, logger := range l.loggers {
-		logger.Debug(msg, ctx...)
-	}
-}
-
-func (l *MultiLogger) Info(msg string, ctx ...Field) {
-	for _, logger := range l.loggers {
-		logger.Info(msg, ctx...)
-	}
-}
-
-func (l *MultiLogger) With(ctx ...Field) Logger {
-	loggers := []Logger{}
-	for _, logger := range l.loggers {
-		loggers = append(loggers, logger.With(ctx...))
-	}
-
-	return NewMultiLogger(loggers...)
-}
-
-// session logger
-// api and implements session
-
-//api server
-// uses session logger
-
 func Err(l Logger, msg string, err error, ctx []keyvalue.T) {
 	if len(ctx) == 0 {
 		l.Error(msg, Error(err))

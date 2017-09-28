@@ -82,36 +82,14 @@ func (s *SessionService) handleSessions(w http.ResponseWriter, r *http.Request) 
 	contentType := r.Header.Get("Content-Type")
 
 	// TODO: do better verification of content type here
-	session := s.SessionsStore.Create(&httpWriteFlusher{w: w}, contentType, tags)
+	session := s.SessionsStore.Create(w, contentType, tags)
 	defer s.SessionsStore.Delete(session)
 
 	header := w.Header()
 	header.Add("Transfer-Encoding", "chunked")
+	header.Add("Content-Type", r.Header.Get("Content-Type"))
 	w.WriteHeader(http.StatusOK)
 	// TODO: set content headers
 
 	<-r.Context().Done()
-}
-
-type WriteFlusher interface {
-	Write([]byte) (int, error)
-	Flush() error
-}
-
-type httpWriteFlusher struct {
-	w http.ResponseWriter
-}
-
-func (h *httpWriteFlusher) Write(buf []byte) (int, error) {
-	return h.w.Write(buf)
-}
-func (h *httpWriteFlusher) Flush() error {
-	flusher, ok := h.w.(http.Flusher)
-	if !ok {
-		return errors.New("failed to coerce to http.Flusher")
-	}
-
-	flusher.Flush()
-
-	return nil
 }

@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-type Writer interface {
-	Write([]byte) (int, error)
-	WriteByte(byte) error
-	WriteString(string) (int, error)
-}
-
 func writeString(w Writer, s string) (n int, err error) {
 	var m int
 	// TODO: revisit

@@ -19,6 +19,68 @@ const (
 	ErrorLevel
 )
 
+type Logger interface {
+	Error(msg string, ctx ...Field)
+	Warn(msg string, ctx ...Field)
+	Debug(msg string, ctx ...Field)
+	Info(msg string, ctx ...Field)
+	With(ctx ...Field) Logger
+}
+
+type Writer interface {
+	Write([]byte) (int, error)
+	WriteByte(byte) error
+	WriteString(string) (int, error)
+}
+
+type WriteFlusher interface {
+	Write([]byte) (int, error)
+	Flush() error
+}
+
+type MultiLogger struct {
+	loggers []Logger
+}
+
+func NewMultiLogger(loggers ...Logger) *MultiLogger {
+	return &MultiLogger{
+		loggers: loggers,
+	}
+}
+
+func (l *MultiLogger) Error(msg string, ctx ...Field) {
+	for _, logger := range l.loggers {
+		logger.Error(msg, ctx...)
+	}
+}
+
+func (l *MultiLogger) Warn(msg string, ctx ...Field) {
+	for _, logger := range l.loggers {
+		logger.Warn(msg, ctx...)
+	}
+}
+
+func (l *MultiLogger) Debug(msg string, ctx ...Field) {
+	for _, logger := range l.loggers {
+		logger.Debug(msg, ctx...)
+	}
+}
+
+func (l *MultiLogger) Info(msg string, ctx ...Field) {
+	for _, logger := range l.loggers {
+		logger.Info(msg, ctx...)
+	}
+}
+
+func (l *MultiLogger) With(ctx ...Field) Logger {
+	loggers := []Logger{}
+	for _, logger := range l.loggers {
+		loggers = append(loggers, logger.With(ctx...))
+	}
+
+	return NewMultiLogger(loggers...)
+}
+
 func defaultLevelF(lvl Level) bool {
 	return true
 }
@@ -104,6 +166,43 @@ func (l *ServerLogger) Log(now time.Time, level string, msg string, ctx []Field)
 	l.w.Flush()
 }
 
+type sessionsLogger struct {
+	store   SessionsStore
+	context []Field
+}
+
+func (s *sessionsLogger) Error(msg string, ctx ...Field) {
+	s.store.Each(func(sn *Session) {
+		sn.Error(msg, s.context, ctx)
+	})
+}
+
+func (s *sessionsLogger) Warn(msg string, ctx ...Field) {
+	s.store.Each(func(sn *Session) {
+		sn.Warn(msg, s.context, ctx)
+	})
+}
+
+func (s *sessionsLogger) Debug(msg string, ctx ...Field) {
+	s.store.Each(func(sn *Session) {
+		sn.Warn(msg, s.context, ctx)
+	})
+}
+
+func (s *sessionsLogger) Info(msg string, ctx ...Field) {
+	s.store.Each(func(sn *Session) {
+		sn.Info(msg, s.context, ctx)
+	})
+}
+
+func (s *sessionsLogger) With(ctx ...Field) Logger {
+	// TODO: this needs some kind of locking
+	return &sessionsLogger{
+		store:   s.store,
+		context: append(s.context, ctx...),
+	}
+}
+
 // TODO: actually care about errors?
 func writeLogfmt(w Writer, now time.Time, level string, msg string, context, fields []Field) {
 
@@ -143,7 +242,6 @@ func writeLogfmtMessage(w Writer, msg string) {
 }
 
 // TODO: actually care about errors?
-// TODO: should we ensure non-duplicate keys?
 func writeJSON(w Writer, now time.Time, level string, msg string, context, fields []Field) {
 
 	w.WriteByte('{')
