@@ -1,18 +1,16 @@
 package diagnostic
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/influxdata/kapacitor/services/httpd"
 	"github.com/influxdata/kapacitor/uuid"
 )
 
 const (
-	sessionsPath = "/sessions"
+	sessionsPath = "/logs"
 )
 
 //type Diagnostic interface {
@@ -47,6 +45,8 @@ func (s *SessionService) Open() error {
 			Method:      "GET",
 			Pattern:     sessionsPath,
 			HandlerFunc: s.handleSessions,
+			NoGzip:      true,
+			NoJSON:      true,
 		},
 	}
 
@@ -88,11 +88,9 @@ func (s *SessionService) handleSessions(w http.ResponseWriter, r *http.Request) 
 	header := w.Header()
 	header.Add("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
+	// TODO: set content headers
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
-	defer cancel()
-
-	<-ctx.Done()
+	<-r.Context().Done()
 }
 
 type WriteFlusher interface {

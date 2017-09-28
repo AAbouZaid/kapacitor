@@ -338,6 +338,10 @@ func (s StringsField) WriteLogfmtTo(w Writer) (n int64, err error) {
 func (s StringsField) WriteJSONTo(w Writer) (n int64, err error) {
 	var m int
 
+	if len(s.values) == 0 {
+		return String(string(s.key), "nil").WriteJSONTo(w)
+	}
+
 	for i, value := range s.values {
 		if i != 0 {
 			err = w.WriteByte(',')

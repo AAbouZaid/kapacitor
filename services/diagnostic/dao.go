@@ -20,9 +20,11 @@ type sessionsStore struct {
 	sessions map[uuid.UUID]*Session
 }
 
+//func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags []tag) *Session {
 func (kv *sessionsStore) Create(w WriteFlusher, contentType string, tags []tag) *Session {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
+	// type assert here
 	s := &Session{
 		id:          uuid.New(),
 		tags:        tags,
@@ -117,19 +119,19 @@ func (s *Session) Error(msg string, context, fields []Field) {
 
 func (s *Session) Warn(msg string, context, fields []Field) {
 	if match(s.tags, msg, "warn", context, fields) {
-		s.Log(time.Now(), "error", msg, context, fields)
+		s.Log(time.Now(), "warn", msg, context, fields)
 	}
 }
 
 func (s *Session) Debug(msg string, context, fields []Field) {
 	if match(s.tags, msg, "debug", context, fields) {
-		s.Log(time.Now(), "error", msg, context, fields)
+		s.Log(time.Now(), "debug", msg, context, fields)
 	}
 }
 
 func (s *Session) Info(msg string, context, fields []Field) {
 	if match(s.tags, msg, "info", context, fields) {
-		s.Log(time.Now(), "error", msg, context, fields)
+		s.Log(time.Now(), "info", msg, context, fields)
 	}
 }
 
@@ -140,15 +142,12 @@ func (s *Session) Log(now time.Time, level, msg string, context, fields []Field)
 	case "application/json":
 		writeJSON(&s.buf, now, level, msg, context, fields)
 	default:
-		// TODO: This OK?
 		writeLogfmt(&s.buf, now, level, msg, context, fields)
 	}
 	// write data
 	s.w.Write(s.buf.Bytes())
 	// reset buffer
 	s.buf.Reset()
-	// write delimiter
-	s.w.Write([]byte("\n\n"))
 	// flush chunk
 	s.w.Flush()
 }
