@@ -52,6 +52,8 @@ Commands:
 	define-topic-handler  Create/update an alert handler for a topic.
 	replay                Replay a recording to a task.
 	replay-live           Replay data against a task without recording it.
+	watch                 Watch logs for a task.
+	logs                  Follow arbitrary Kapacitor logs.
 	enable                Enable and start running a task with live data.
 	disable               Stop running a task.
 	reload                Reload a running task with an updated task definition.
@@ -153,6 +155,12 @@ func main() {
 		}
 		commandArgs = args
 		commandF = doReplayLive
+	case "watch":
+		commandArgs = args
+		commandF = doWatch
+	case "logs":
+		commandArgs = args
+		commandF = doLogs
 	case "enable":
 		commandArgs = args
 		commandF = doEnable
@@ -284,6 +292,10 @@ func doHelp(args []string) error {
 			showTopicUsage()
 		case "backup":
 			backupUsage()
+		case "watch":
+			watchUsage()
+		case "logs":
+			logsUsage()
 		case "level":
 			levelUsage()
 		case "help":
@@ -2243,6 +2255,51 @@ func doBackup(args []string) error {
 	}
 	if n != size {
 		return fmt.Errorf("failed to download entire backup, only wrote %d bytes out of a total %d bytes.", n, size)
+	}
+	return nil
+}
+
+func watchUsage() {
+	var u = `Usage: kapacitor watch <output file>
+
+	Watch logs associated with a task.
+`
+	fmt.Fprintln(os.Stderr, u)
+}
+
+func doWatch(args []string) error {
+	if len(args) != 1 {
+		return errors.New("must provide task ID.")
+	}
+	err := cli.Logs(os.Stdout, map[string]string{"task": args[0]})
+	if err != nil {
+		return errors.Wrap(err, "failed writing logs")
+	}
+	return nil
+}
+
+func logsUsage() {
+	var u = `Usage: kapacitor logs [<tags> ...]
+
+	Watch arbitrary kapacitor logs.
+
+		$ kapacitor logs service=http lvl=info
+`
+	fmt.Fprintln(os.Stderr, u)
+}
+
+func doLogs(args []string) error {
+	m := map[string]string{}
+	for _, s := range args {
+		pair := strings.Split(s, "=")
+		if len(pair) != 2 {
+			return fmt.Errorf("bad keyvalue pair: '%v'", s)
+		}
+		m[pair[0]] = pair[1]
+	}
+	err := cli.Logs(os.Stdout, m)
+	if err != nil {
+		return errors.Wrap(err, "failed writing logs")
 	}
 	return nil
 }

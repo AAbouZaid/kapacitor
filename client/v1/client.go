@@ -31,6 +31,7 @@ const (
 	basePreviewPath   = "/kapacitor/v1preview"
 	pingPath          = basePath + "/ping"
 	logLevelPath      = basePath + "/loglevel"
+	logsPath          = basePath + "/logs"
 	debugVarsPath     = basePath + "/debug/vars"
 	tasksPath         = basePath + "/tasks"
 	templatesPath     = basePath + "/templates"
@@ -657,6 +658,39 @@ func (c *Client) Do(req *http.Request, result interface{}, codes ...int) (*http.
 		}
 	}
 	return resp, nil
+}
+
+func (c *Client) Logs(w io.Writer, q map[string]string) error {
+	u := c.BaseURL()
+	u.Path = logsPath
+
+	qp := u.Query()
+	for k, v := range q {
+		qp.Add(k, v)
+	}
+	u.RawQuery = qp.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	err = c.prepRequest(req)
+	if err != nil {
+		return err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("bad status code %v", resp.StatusCode)
+	}
+
+	_, err = io.Copy(w, resp.Body)
+
+	return err
 }
 
 // Ping the server for a response.
