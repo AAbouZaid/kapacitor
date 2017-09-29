@@ -23,6 +23,7 @@ type SessionService struct {
 	SessionsStore SessionsStore
 	HTTPDService  interface {
 		AddRoutes([]httpd.Route) error
+		DelRoutes([]httpd.Route)
 	}
 }
 
@@ -35,6 +36,11 @@ func NewSessionService() *SessionService {
 }
 
 func (s *SessionService) Close() error {
+	if s.HTTPDService == nil {
+		return errors.New("must set HTTPDService")
+	}
+
+	s.HTTPDService.DelRoutes(s.routes)
 	return nil
 }
 
@@ -45,8 +51,12 @@ func (s *SessionService) Open() error {
 			Method:      "GET",
 			Pattern:     sessionsPath,
 			HandlerFunc: s.handleSessions,
-			NoGzip:      true,
-			NoJSON:      true,
+			// NoGzip is true so that clients don't have to specify
+			// the header "Accept-Encoding: identity"
+			NoGzip: true,
+			// Data returned is not necessarily JSON. Server
+			// sets "Content-Type" appropriately.
+			NoJSON: true,
 		},
 	}
 

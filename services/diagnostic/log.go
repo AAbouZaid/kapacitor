@@ -35,7 +35,7 @@ type Writer interface {
 
 type WriteFlusher interface {
 	Write([]byte) (int, error)
-	Flush() error
+	Flush()
 }
 
 type MultiLogger struct {

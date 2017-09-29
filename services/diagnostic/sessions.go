@@ -25,10 +25,9 @@ func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags 
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
-	flusher, ok := w.(http.Flusher)
-	var wf WriteFlusher = &noopWriteFlusher{w: w}
-	if ok {
-		wf = &httpWriteFlusher{w: w, f: flusher}
+	wf, ok := w.(WriteFlusher)
+	if !ok {
+		wf = &noopWriteFlusher{w: w}
 	}
 
 	s := &Session{
@@ -154,19 +153,5 @@ type noopWriteFlusher struct {
 func (h *noopWriteFlusher) Write(buf []byte) (int, error) {
 	return h.w.Write(buf)
 }
-func (h *noopWriteFlusher) Flush() error {
-	return nil
-}
-
-type httpWriteFlusher struct {
-	w http.ResponseWriter
-	f http.Flusher
-}
-
-func (h *httpWriteFlusher) Write(buf []byte) (int, error) {
-	return h.w.Write(buf)
-}
-func (h *httpWriteFlusher) Flush() error {
-	h.f.Flush()
-	return nil
+func (h *noopWriteFlusher) Flush() {
 }
