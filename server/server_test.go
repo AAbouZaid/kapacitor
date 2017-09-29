@@ -10147,3 +10147,57 @@ func TestStorage_Backup(t *testing.T) {
 		t.Fatalf("unexpected dot\ngot\n%s\nexp\n%s\n", ti.Dot, dot)
 	}
 }
+
+func TestLogSessions_HeaderJSON(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	u := cli.BaseURL()
+	u.Path = "/logs"
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if exp, got := "application/json; charset=utf-8", resp.Header.Get("Content-Type"); exp != got {
+		t.Fatalf("expected: %v, got: %v\n", exp, got)
+		return
+	}
+
+}
+
+func TestLogSessions_HeaderGzip(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	u := cli.BaseURL()
+	u.Path = "/logs"
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if exp, got := "", resp.Header.Get("Content-Encoding"); exp != got {
+		t.Fatalf("expected: %v, got: %v\n", exp, got)
+		return
+	}
+
+}
