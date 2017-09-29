@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,10 +11,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
@@ -2260,19 +2263,43 @@ func doBackup(args []string) error {
 }
 
 func watchUsage() {
-	var u = `Usage: kapacitor watch <output file>
+	var u = `Usage: kapacitor watch <task id> [<tags> ...]
 
 	Watch logs associated with a task.
+
+	Examples:
+
+		$ kapacitor logs mytask
+		$ kapacitor logs mytask node=log5
 `
 	fmt.Fprintln(os.Stderr, u)
 }
 
 func doWatch(args []string) error {
-	if len(args) != 1 {
+	m := map[string]string{}
+	if len(args) < 1 {
 		return errors.New("must provide task ID.")
 	}
-	err := cli.Logs(os.Stdout, map[string]string{"task": args[0]})
-	if err != nil {
+	m["task"] = args[0]
+	for _, s := range args[1:] {
+		pair := strings.Split(s, "=")
+		if len(pair) != 2 {
+			return fmt.Errorf("bad keyvalue pair: '%v'", s)
+		}
+		m[pair[0]] = pair[1]
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelled := false
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT)
+	go func() {
+		<-sigs
+		cancel()
+		cancelled = true
+	}()
+
+	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !cancelled {
 		return errors.Wrap(err, "failed writing logs")
 	}
 	return nil
@@ -2297,8 +2324,17 @@ func doLogs(args []string) error {
 		}
 		m[pair[0]] = pair[1]
 	}
-	err := cli.Logs(os.Stdout, m)
-	if err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelled := false
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT)
+	go func() {
+		<-sigs
+		cancel()
+		cancelled = true
+	}()
+
+	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !cancelled {
 		return errors.Wrap(err, "failed writing logs")
 	}
 	return nil

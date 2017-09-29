@@ -3,6 +3,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -660,7 +662,7 @@ func (c *Client) Do(req *http.Request, result interface{}, codes ...int) (*http.
 	return resp, nil
 }
 
-func (c *Client) Logs(w io.Writer, q map[string]string) error {
+func (c *Client) Logs(ctx context.Context, w io.Writer, q map[string]string) error {
 	u := c.BaseURL()
 	u.Path = logsPath
 
@@ -674,6 +676,7 @@ func (c *Client) Logs(w io.Writer, q map[string]string) error {
 	if err != nil {
 		return err
 	}
+	req = req.WithContext(ctx)
 	err = c.prepRequest(req)
 	if err != nil {
 		return err
@@ -688,7 +691,15 @@ func (c *Client) Logs(w io.Writer, q map[string]string) error {
 		return fmt.Errorf("bad status code %v", resp.StatusCode)
 	}
 
-	_, err = io.Copy(w, resp.Body)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		_, err = io.Copy(w, resp.Body)
+		wg.Done()
+	}()
+
+	<-ctx.Done()
+	wg.Wait()
 
 	return err
 }
