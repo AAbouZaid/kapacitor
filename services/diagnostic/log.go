@@ -113,10 +113,11 @@ func (l *ServerLogger) SetLevelF(f func(Level) bool) {
 func (l *ServerLogger) With(ctx ...Field) Logger {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	newCtx := make([]Field, len(l.context))
+	copy(newCtx, l.context)
 	return &ServerLogger{
-		mu: l.mu,
-		// TODO: actually copy values not just append to previous context
-		context: append(l.context, ctx...),
+		mu:      l.mu,
+		context: append(newCtx, ctx...),
 		w:       l.w,
 		levelF:  l.levelF,
 	}
@@ -196,7 +197,6 @@ func (s *sessionsLogger) Info(msg string, ctx ...Field) {
 }
 
 func (s *sessionsLogger) With(ctx ...Field) Logger {
-	// TODO: this needs some kind of locking
 	return &sessionsLogger{
 		store:   s.store,
 		context: append(s.context, ctx...),

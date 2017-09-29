@@ -10,7 +10,6 @@ import (
 
 func writeString(w Writer, s string) (n int, err error) {
 	var m int
-	// TODO: revisit
 	if strings.ContainsAny(s, " \"") {
 		m, err = w.WriteString(strconv.Quote(s))
 		n += m
@@ -176,7 +175,6 @@ func GroupedFields(key string, fields []Field) Field {
 	}
 }
 
-// TODO: implement
 func (s GroupedField) Match(key, value string) bool {
 	return false
 }
@@ -278,7 +276,6 @@ func Strings(key string, values []string) Field {
 	}
 }
 
-// TODO: implement?
 func (s StringsField) Match(key, value string) bool {
 	return false
 }
@@ -380,7 +377,6 @@ func Int(key string, value int) Field {
 	}
 }
 
-// TODO: implement
 func (s IntField) Match(key, value string) bool {
 	return false
 }
@@ -446,7 +442,6 @@ func Int64(key string, value int64) Field {
 	}
 }
 
-// TODO: implement
 func (s Int64Field) Match(key, value string) bool {
 	return false
 }
@@ -512,7 +507,6 @@ func Float64(key string, value float64) Field {
 	}
 }
 
-// TODO: implement
 func (s Float64Field) Match(key, value string) bool {
 	return false
 }
@@ -578,7 +572,6 @@ func Bool(key string, value bool) Field {
 	}
 }
 
-// TODO: implement
 func (s BoolField) Match(key, value string) bool {
 	return false
 }
@@ -658,7 +651,6 @@ func Error(err error) Field {
 	}
 }
 
-// TODO: implement
 func (s ErrorField) Match(key, value string) bool {
 	return false
 }
@@ -734,7 +726,6 @@ func Time(key string, value time.Time) Field {
 	}
 }
 
-// TODO: implement
 func (s TimeField) Match(key, value string) bool {
 	return false
 }
@@ -800,7 +791,6 @@ func Duration(key string, value time.Duration) Field {
 	}
 }
 
-// TODO: implement
 func (s DurationField) Match(key, value string) bool {
 	return false
 }
