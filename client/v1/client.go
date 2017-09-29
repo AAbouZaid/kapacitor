@@ -704,7 +704,6 @@ func (c *Client) Logs(ctx context.Context, w io.Writer, q map[string]string) err
 		return err
 	}
 
-	return err
 }
 
 // Ping the server for a response.
