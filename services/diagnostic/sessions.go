@@ -33,7 +33,6 @@ func (kv *sessionsStore) SetDiagnostic(d Diagnostic) {
 
 func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags []tag) *Session {
 	kv.mu.Lock()
-	defer kv.mu.Unlock()
 
 	wf, ok := w.(WriteFlusher)
 	if !ok {
@@ -49,6 +48,8 @@ func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags 
 
 	kv.sessions[s.id] = s
 
+	// Need explicit unlock before call to CreatedLogSession
+	kv.mu.Unlock()
 	if kv.diag != nil {
 		kv.diag.CreatedLogSession(s.id, contentType, tags)
 	}
@@ -58,7 +59,6 @@ func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags 
 
 func (kv *sessionsStore) Delete(s *Session) error {
 	kv.mu.Lock()
-	defer kv.mu.Unlock()
 
 	if s == nil {
 		return errors.New("session is nil")
@@ -66,6 +66,8 @@ func (kv *sessionsStore) Delete(s *Session) error {
 
 	delete(kv.sessions, s.id)
 
+	// Need explicit unlock before call to CreatedLogSession
+	kv.mu.Unlock()
 	if kv.diag != nil {
 		kv.diag.DeletedLogSession(s.id, s.contentType, s.tags)
 	}
