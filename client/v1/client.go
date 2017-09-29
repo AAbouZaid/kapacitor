@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"path"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -691,15 +690,19 @@ func (c *Client) Logs(ctx context.Context, w io.Writer, q map[string]string) err
 		return fmt.Errorf("bad status code %v", resp.StatusCode)
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	errCh := make(chan error, 1)
+	defer close(errCh)
 	go func() {
-		_, err = io.Copy(w, resp.Body)
-		wg.Done()
+		_, err := io.Copy(w, resp.Body)
+		errCh <- err
 	}()
 
-	<-ctx.Done()
-	wg.Wait()
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
+	}
 
 	return err
 }

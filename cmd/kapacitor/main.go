@@ -2290,16 +2290,16 @@ func doWatch(args []string) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancelled := false
+	done := false
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
 	go func() {
 		<-sigs
 		cancel()
-		cancelled = true
+		done = true
 	}()
 
-	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !cancelled {
+	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !done {
 		return errors.Wrap(err, "failed writing logs")
 	}
 	return nil
@@ -2325,17 +2325,17 @@ func doLogs(args []string) error {
 		m[pair[0]] = pair[1]
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cancelled := false
+	done := false
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
 	go func() {
 		<-sigs
 		cancel()
-		cancelled = true
+		done = true
 	}()
 
-	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !cancelled {
-		return errors.Wrap(err, "failed writing logs")
+	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !done {
+		return errors.Wrap(err, "failed to retrieve logs")
 	}
 	return nil
 }
