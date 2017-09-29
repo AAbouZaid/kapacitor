@@ -14,11 +14,21 @@ type SessionsStore interface {
 	Create(w http.ResponseWriter, contentType string, tags []tag) *Session
 	Delete(s *Session) error
 	Each(func(*Session))
+	SetDiagnostic(Diagnostic)
 }
 
 type sessionsStore struct {
 	mu       sync.RWMutex
 	sessions map[uuid.UUID]*Session
+
+	diag Diagnostic
+}
+
+func (kv *sessionsStore) SetDiagnostic(d Diagnostic) {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	kv.diag = d
+
 }
 
 func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags []tag) *Session {
@@ -39,6 +49,10 @@ func (kv *sessionsStore) Create(w http.ResponseWriter, contentType string, tags 
 
 	kv.sessions[s.id] = s
 
+	if kv.diag != nil {
+		kv.diag.CreatedLogSession(s.id, contentType, tags)
+	}
+
 	return s
 }
 
@@ -51,6 +65,10 @@ func (kv *sessionsStore) Delete(s *Session) error {
 	}
 
 	delete(kv.sessions, s.id)
+
+	if kv.diag != nil {
+		kv.diag.DeletedLogSession(s.id, s.contentType, s.tags)
+	}
 
 	return nil
 }

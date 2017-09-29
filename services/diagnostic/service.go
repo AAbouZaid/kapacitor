@@ -120,6 +120,8 @@ func (s *Service) Open() error {
 		s.SessionService.NewLogger(),
 	)
 
+	s.SessionService.SetDiagnostic(s.NewSessionHandler())
+
 	return nil
 }
 
@@ -429,5 +431,11 @@ func (s *Service) NewStaticLevelHandler(level string, service string) (*StaticLe
 func (s *Service) NewCmdHandler() *CmdHandler {
 	return &CmdHandler{
 		l: s.logger.With(String("service", "run")),
+	}
+}
+
+func (s *Service) NewSessionHandler() *SessionHandler {
+	return &SessionHandler{
+		l: s.logger.With(String("service", "sessions")),
 	}
 }

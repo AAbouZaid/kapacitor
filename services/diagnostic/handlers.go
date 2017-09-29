@@ -35,6 +35,7 @@ import (
 	"github.com/influxdata/kapacitor/services/udp"
 	"github.com/influxdata/kapacitor/services/victorops"
 	"github.com/influxdata/kapacitor/udf"
+	"github.com/influxdata/kapacitor/uuid"
 	plog "github.com/prometheus/common/log"
 )
 
@@ -1204,4 +1205,28 @@ func (h *CmdHandler) GoVersion() {
 
 func (h *CmdHandler) Info(msg string) {
 	h.l.Info(msg)
+}
+
+// Session handler
+
+type SessionHandler struct {
+	l Logger
+}
+
+func (h *SessionHandler) CreatedLogSession(id uuid.UUID, contentType string, tags []tag) {
+	ts := make([]string, len(tags))
+	for i, t := range tags {
+		ts[i] = t.key + "=" + t.value
+	}
+
+	h.l.Info("created log session", Stringer("id", id), String("content-type", contentType), Strings("tags", ts))
+}
+
+func (h *SessionHandler) DeletedLogSession(id uuid.UUID, contentType string, tags []tag) {
+	ts := make([]string, len(tags))
+	for i, t := range tags {
+		ts[i] = t.key + "=" + t.value
+	}
+
+	h.l.Info("deleted log session", Stringer("id", id), String("content-type", contentType), Strings("tags", ts))
 }

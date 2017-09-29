@@ -13,11 +13,13 @@ const (
 	sessionsPath = "/logs"
 )
 
-//type Diagnostic interface {
-//}
+type Diagnostic interface {
+	CreatedLogSession(id uuid.UUID, contentType string, tags []tag)
+	DeletedLogSession(id uuid.UUID, contentType string, tags []tag)
+}
 
 type SessionService struct {
-	//diag   Diagnostic
+	diag   Diagnostic
 	routes []httpd.Route
 
 	SessionsStore SessionsStore
@@ -33,6 +35,10 @@ func NewSessionService() *SessionService {
 			sessions: make(map[uuid.UUID]*Session),
 		},
 	}
+}
+
+func (s *SessionService) SetDiagnostic(d Diagnostic) {
+	s.SessionsStore.SetDiagnostic(d)
 }
 
 func (s *SessionService) Close() error {
@@ -91,7 +97,6 @@ func (s *SessionService) handleSessions(w http.ResponseWriter, r *http.Request) 
 
 	contentType := r.Header.Get("Content-Type")
 
-	// TODO: do better verification of content type here
 	session := s.SessionsStore.Create(w, contentType, tags)
 	defer s.SessionsStore.Delete(session)
 
@@ -99,7 +104,6 @@ func (s *SessionService) handleSessions(w http.ResponseWriter, r *http.Request) 
 	header.Add("Transfer-Encoding", "chunked")
 	header.Add("Content-Type", r.Header.Get("Content-Type"))
 	w.WriteHeader(http.StatusOK)
-	// TODO: set content headers
 
 	<-r.Context().Done()
 }
