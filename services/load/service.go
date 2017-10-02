@@ -183,7 +183,7 @@ func (s *Service) load() error {
 	s.diag.Debug("loading tasks")
 	err := s.loadTasks()
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return fmt.Errorf("failed to load tasks: %v", err)
 	}
 
 	s.diag.Debug("loading templates")
@@ -204,7 +204,7 @@ func (s *Service) load() error {
 func (s *Service) loadTasks() error {
 	files, err := s.taskFiles()
 	if err != nil {
-		return fmt.Errorf("failed to load tickscripts: %v", err)
+		return err
 	}
 
 	for _, f := range files {
