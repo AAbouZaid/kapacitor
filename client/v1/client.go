@@ -221,42 +221,6 @@ func (d DBRP) String() string {
 	return fmt.Sprintf("%q.%q", d.Database, d.RetentionPolicy)
 }
 
-//func (d *DBRP) Unmarshal(value string) error {
-//	if len(value) == 0 {
-//		return errors.New("dbrp cannot be empty")
-//	}
-//	var n int
-//	if value[0] == '"' {
-//		d.Database, n = parseQuotedStr(value)
-//	} else {
-//		n = strings.IndexRune(value, '.')
-//		if n == -1 {
-//			return errors.New("does not contain a '.', it must be in the form \"dbname\".\"rpname\" where the quotes are optional.")
-//		}
-//		d.Database = value[:n]
-//	}
-//	if value[n] != '.' {
-//		return errors.New("dbrp must specify retention policy, do you have a missing or extra '.'?")
-//	}
-//	value = value[n+1:]
-//	if value[0] == '"' {
-//		d.RetentionPolicy, _ = parseQuotedStr(value)
-//	} else {
-//		d.RetentionPolicy = value
-//	}
-//
-//	return nil
-//}
-
-//func newDBRPFromString(value string) (*DBRP, error) {
-//	dbrp := &DBRP{}
-//	if err := dbrp.Unmarshal(value); err != nil {
-//		return nil, err
-//	}
-//
-//	return dbrp, nil
-//}
-
 // Statistics about the execution of a task.
 type ExecutionStats struct {
 	// Summary stats about the entire task
