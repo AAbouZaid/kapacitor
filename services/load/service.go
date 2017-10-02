@@ -68,46 +68,16 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// TaskFiles gets a slice of all files with the .tick file extension
+// taskFiles gets a slice of all files with the .tick file extension
+// and any associated files with .json, .yml, and .yaml file extentions
 // in the configured task directory.
-func (s *Service) taskFiles() (tickscripts []string, err error) {
+func (s *Service) taskFiles() (tickscripts []string, taskFiles []string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	tasksDir := s.config.tasksDir()
 
 	files, err := ioutil.ReadDir(tasksDir)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		filename := file.Name()
-		switch ext := filepath.Ext(filename); ext {
-		case ".tick":
-			tickscripts = append(tickscripts, filepath.Join(tasksDir, filename))
-		default:
-			continue
-		}
-	}
-
-	return
-}
-
-// TemplateFiles gets a slice of all files with the .tick file extension
-// and any associated files with .json, .yml, and .yaml file extentions
-// in the configured template directory.
-func (s *Service) templateFiles() (tickscripts []string, tmplVars []string, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	templatesDir := s.config.templatesDir()
-
-	files, err := ioutil.ReadDir(templatesDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -120,9 +90,39 @@ func (s *Service) templateFiles() (tickscripts []string, tmplVars []string, err 
 		filename := file.Name()
 		switch ext := filepath.Ext(filename); ext {
 		case ".tick":
-			tickscripts = append(tickscripts, filepath.Join(templatesDir, filename))
+			tickscripts = append(tickscripts, filepath.Join(tasksDir, filename))
 		case ".yml", ".json", ".yaml":
-			tmplVars = append(tmplVars, filepath.Join(templatesDir, filename))
+			taskFiles = append(taskFiles, filepath.Join(tasksDir, filename))
+		default:
+			continue
+		}
+	}
+
+	return
+}
+
+// templateFiles gets a slice of all files with the .tick file extension
+// in the configured template directory.
+func (s *Service) templateFiles() (tickscripts []string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	templatesDir := s.config.templatesDir()
+
+	files, err := ioutil.ReadDir(templatesDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		filename := file.Name()
+		switch ext := filepath.Ext(filename); ext {
+		case ".tick":
+			tickscripts = append(tickscripts, filepath.Join(templatesDir, filename))
 		default:
 			continue
 		}
@@ -180,16 +180,16 @@ func (s *Service) load() error {
 		return nil
 	}
 
-	s.diag.Debug("loading tasks")
-	err := s.loadTasks()
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to load tasks: %v", err)
-	}
-
 	s.diag.Debug("loading templates")
-	err = s.loadTemplates()
+	err := s.loadTemplates()
 	if err != nil && !os.IsNotExist(err) {
 		return err
+	}
+
+	s.diag.Debug("loading tasks")
+	err = s.loadTasks()
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to load tasks: %v", err)
 	}
 
 	s.diag.Debug("loading handlers")
@@ -202,15 +202,22 @@ func (s *Service) load() error {
 }
 
 func (s *Service) loadTasks() error {
-	files, err := s.taskFiles()
+	ticks, templateTasks, err := s.taskFiles()
 	if err != nil {
 		return err
 	}
 
-	for _, f := range files {
+	for _, f := range ticks {
 		s.diag.Loading("task", f)
 		if err := s.loadTask(f); err != nil {
 			return fmt.Errorf("failed to load file %s: %s", f, err.Error())
+		}
+	}
+
+	for _, v := range templateTasks {
+		s.diag.Loading("template task", v)
+		if err := s.loadVars(v); err != nil {
+			return fmt.Errorf("failed to load file %s: %s", v, err.Error())
 		}
 	}
 
@@ -269,7 +276,7 @@ func (s *Service) loadTask(f string) error {
 }
 
 func (s *Service) loadTemplates() error {
-	files, vars, err := s.templateFiles()
+	files, err := s.templateFiles()
 	if err != nil {
 		return err
 	}
@@ -278,13 +285,6 @@ func (s *Service) loadTemplates() error {
 		s.diag.Loading("template", f)
 		if err := s.loadTemplate(f); err != nil {
 			return fmt.Errorf("failed to load file %s: %s", f, err.Error())
-		}
-	}
-
-	for _, v := range vars {
-		s.diag.Loading("task-vars", v)
-		if err := s.loadVars(v); err != nil {
-			return fmt.Errorf("failed to load file %s: %s", v, err.Error())
 		}
 	}
 	return nil
