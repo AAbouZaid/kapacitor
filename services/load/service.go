@@ -14,10 +14,16 @@ import (
 	"github.com/ghodss/yaml"
 
 	"github.com/influxdata/kapacitor/client/v1"
+	kexpvar "github.com/influxdata/kapacitor/expvar"
+	"github.com/influxdata/kapacitor/server/vars"
 	"github.com/pkg/errors"
 )
 
 var defaultURL = "http://localhost:9092"
+
+const (
+	statErrorCount = "errors"
+)
 
 type Diagnostic interface {
 	Debug(msg string)
@@ -28,7 +34,11 @@ type Service struct {
 	mu     sync.Mutex
 	config Config
 
-	cli  *client.Client
+	cli        *client.Client
+	statsKey   string
+	statMap    *kexpvar.Map
+	errorCount *kexpvar.Int
+
 	diag Diagnostic
 }
 
@@ -45,11 +55,17 @@ func NewService(c Config, h http.Handler, d Diagnostic) (*Service, error) {
 		return nil, fmt.Errorf("failed to create client: %v", err)
 	}
 
-	return &Service{
+	s := &Service{
 		config: c,
 		diag:   d,
 		cli:    cli,
-	}, nil
+	}
+
+	s.statsKey, s.statMap = vars.NewStatistic("load", nil)
+	s.errorCount = &kexpvar.Int{}
+	s.statMap.Set(statErrorCount, s.errorCount)
+
+	return s, nil
 }
 
 func (s *Service) Open() error {
@@ -155,7 +171,12 @@ func (s *Service) handlerFiles() ([]string, error) {
 }
 
 func (s *Service) Load() error {
-	return s.load()
+	if err := s.load(); err != nil {
+		s.errorCount.Add(1)
+		return err
+	}
+
+	return nil
 }
 
 func (s *Service) load() error {
