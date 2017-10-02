@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -2269,8 +2270,8 @@ func watchUsage() {
 
 	Examples:
 
-		$ kapacitor logs mytask
-		$ kapacitor logs mytask node=log5
+		$ kapacitor watch mytask
+		$ kapacitor watch mytask node=log5
 `
 	fmt.Fprintln(os.Stderr, u)
 }
@@ -2289,20 +2290,7 @@ func doWatch(args []string) error {
 		m[pair[0]] = pair[1]
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := false
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT)
-	go func() {
-		<-sigs
-		cancel()
-		done = true
-	}()
-
-	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !done {
-		return errors.Wrap(err, "failed writing logs")
-	}
-	return nil
+	return tailLogs(m)
 }
 
 func logsUsage() {
@@ -2324,18 +2312,30 @@ func doLogs(args []string) error {
 		}
 		m[pair[0]] = pair[1]
 	}
+
+	return tailLogs(m)
+}
+
+func tailLogs(m map[string]string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := false
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
+	var mu sync.Mutex
 	go func() {
 		<-sigs
 		cancel()
+		mu.Lock()
+		defer mu.Unlock()
 		done = true
 	}()
 
-	if err := cli.Logs(ctx, os.Stdout, m); err != nil && !done {
+	err := cli.Logs(ctx, os.Stdout, m)
+	mu.Lock()
+	defer mu.Unlock()
+	if err != nil && !done {
 		return errors.Wrap(err, "failed to retrieve logs")
 	}
+
 	return nil
 }
