@@ -1,5 +1,4 @@
 {
-  "id": "base",
   "dbrps": [{"db": "telegraf", "rp": "autogen"}],
   "template-id": "base_template",
   "vars": {

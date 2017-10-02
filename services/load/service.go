@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/kapacitor/client/v1"
 	kexpvar "github.com/influxdata/kapacitor/expvar"
 	"github.com/influxdata/kapacitor/server/vars"
+	"github.com/influxdata/kapacitor/services/storage"
 	"github.com/pkg/errors"
 )
 
@@ -23,6 +24,13 @@ var defaultURL = "http://localhost:9092"
 
 const (
 	statErrorCount = "errors"
+)
+
+const (
+	// Public name of overrides store
+	loadAPIName = "load"
+	// The storage namespace for all configuration override data.
+	loadNamespace = "load_items"
 )
 
 type Diagnostic interface {
@@ -38,6 +46,17 @@ type Service struct {
 	statsKey   string
 	statMap    *kexpvar.Map
 	errorCount *kexpvar.Int
+
+	items ItemsDAO
+
+	tasks     map[string]bool
+	templates map[string]bool
+	handlers  map[string]bool
+
+	StorageService interface {
+		Store(namespace string) storage.Interface
+		Register(name string, store storage.StoreActioner)
+	}
 
 	diag Diagnostic
 }
@@ -56,9 +75,12 @@ func NewService(c Config, h http.Handler, d Diagnostic) (*Service, error) {
 	}
 
 	s := &Service{
-		config: c,
-		diag:   d,
-		cli:    cli,
+		config:    c,
+		diag:      d,
+		cli:       cli,
+		tasks:     map[string]bool{},
+		templates: map[string]bool{},
+		handlers:  map[string]bool{},
 	}
 
 	s.statsKey, s.statMap = vars.NewStatistic("load", nil)
@@ -69,6 +91,13 @@ func NewService(c Config, h http.Handler, d Diagnostic) (*Service, error) {
 }
 
 func (s *Service) Open() error {
+	store := s.StorageService.Store(loadNamespace)
+	items, err := newItemKV(store)
+	if err != nil {
+		return err
+	}
+	s.items = items
+	s.StorageService.Register(loadAPIName, s.items)
 	return nil
 }
 
@@ -171,7 +200,20 @@ func (s *Service) handlerFiles() ([]string, error) {
 }
 
 func (s *Service) Load() error {
+	s.mu.Lock()
+	s.tasks = map[string]bool{}
+	s.templates = map[string]bool{}
+	s.handlers = map[string]bool{}
+	s.mu.Unlock()
+
 	if err := s.load(); err != nil {
+		// TODO: add error here
+		s.errorCount.Add(1)
+		return err
+	}
+
+	if err := s.removeMissing(); err != nil {
+		// TODO: add error here
 		s.errorCount.Add(1)
 		return err
 	}
@@ -281,6 +323,11 @@ func (s *Service) loadTask(f string) error {
 		}
 
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tasks[id] = true
+
 	return nil
 }
 
@@ -315,6 +362,10 @@ func (s *Service) loadTemplate(f string) error {
 	fn := file.Name()
 	id := strings.TrimSuffix(filepath.Base(fn), filepath.Ext(fn))
 
+	if err := s.items.Set(Item{ID: path.Join("templates", id)}); err != nil {
+		return err
+	}
+
 	l := s.cli.TemplateLink(id)
 	task, _ := s.cli.Template(l, nil)
 	if task.ID == "" {
@@ -335,6 +386,11 @@ func (s *Service) loadTemplate(f string) error {
 			return fmt.Errorf("failed to create template: %v", err)
 		}
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.templates[id] = true
+
 	return nil
 }
 
@@ -402,6 +458,11 @@ func (s *Service) loadVars(f string) error {
 			return err
 		}
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tasks[id] = true
+
 	return nil
 }
 
@@ -459,6 +520,96 @@ func (s *Service) loadHandler(f string) error {
 			return err
 		}
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.handlers[o.ID] = true
 
 	return nil
+}
+
+func (s *Service) removeMissing() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	loadedTasks, err := s.loadedTasks()
+	if err != nil {
+		return err
+	}
+
+	for _, taskID := range diff(s.tasks, loadedTasks) {
+		// Delete tasks
+		_ = taskID
+	}
+
+	loadedTemplates, err := s.loadedTemplates()
+	if err != nil {
+		return err
+	}
+	for _, templateID := range diff(s.templates, loadedTemplates) {
+		// Delete templates
+		_ = templateID
+	}
+
+	loadedHandlers, err := s.loadedHandlers()
+	if err != nil {
+		return err
+	}
+	for _, handlerID := range diff(s.handlers, loadedHandlers) {
+		// Delete handler
+		_ = handlerID
+	}
+
+	return nil
+}
+
+func diff(m map[string]bool, xs []string) []string {
+	diffs := []string{}
+
+	for _, x := range xs {
+		if m[x] {
+			continue
+		}
+		diffs = append(diffs, x)
+	}
+
+	return diffs
+}
+
+func (s *Service) loadedTasks() ([]string, error) {
+	items, err := s.items.List("tasks")
+	if err != nil {
+		return nil, err
+	}
+	tasks := []string{}
+	for _, item := range items {
+		tasks = append(tasks, filepath.Base(item.ID))
+	}
+
+	return tasks, nil
+}
+
+func (s *Service) loadedTemplates() ([]string, error) {
+	items, err := s.items.List("templates")
+	if err != nil {
+		return nil, err
+	}
+	templates := []string{}
+	for _, item := range items {
+		templates = append(templates, filepath.Base(item.ID))
+	}
+
+	return templates, nil
+}
+
+func (s *Service) loadedHandlers() ([]string, error) {
+	items, err := s.items.List("handlers")
+	if err != nil {
+		return nil, err
+	}
+	handlers := []string{}
+	for _, item := range items {
+		handlers = append(handlers, filepath.Base(item.ID))
+	}
+
+	return handlers, nil
 }

@@ -384,6 +384,8 @@ func (s *Server) appendLoadService() error {
 		return err
 	}
 
+	srv.StorageService = s.StorageService
+
 	s.LoadService = srv
 	s.AppendService("load", srv)
 
