@@ -174,6 +174,12 @@ func (s *Service) load() error {
 	if !s.config.Enabled {
 		return nil
 	}
+
+	if _, err := ioutil.ReadDir(s.config.Dir); os.IsNotExist(err) {
+		s.diag.Debug("skipping load... load directory does not exists")
+		return nil
+	}
+
 	s.diag.Debug("loading tasks")
 	err := s.loadTasks()
 	if err != nil && !os.IsNotExist(err) {
