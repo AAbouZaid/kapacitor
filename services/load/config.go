@@ -11,14 +11,12 @@ const handlerDir = "handlers"
 
 type Config struct {
 	Enabled bool   `toml:"enabled"`
-	Hard    bool   `toml:"hard"`
 	Dir     string `toml:"dir"`
 }
 
 func NewConfig() Config {
 	return Config{
 		Enabled: false,
-		Hard:    false,
 		Dir:     "./load",
 	}
 }

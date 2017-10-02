@@ -1058,9 +1058,7 @@ func (s *Server) writeID(file string, id uuid.UUID) error {
 func (s *Server) Reload() error {
 	if err := s.LoadService.Load(); err != nil {
 		s.Diag.Error("failed to reload tasks/templates/handlers", err)
-		if _, ok := err.(load.HardError); ok {
-			return err
-		}
+		return err
 	}
 
 	return nil

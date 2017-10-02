@@ -24,14 +24,6 @@ type Diagnostic interface {
 	Loading(thing string, file string)
 }
 
-type HardError struct {
-	err error
-}
-
-func (e HardError) Error() string {
-	return e.err.Error()
-}
-
 type Service struct {
 	mu     sync.Mutex
 	config Config
@@ -163,11 +155,7 @@ func (s *Service) handlerFiles() ([]string, error) {
 }
 
 func (s *Service) Load() error {
-	if err := s.load(); err != nil && s.config.Hard {
-		return HardError{err: err}
-	} else {
-		return err
-	}
+	return s.load()
 }
 
 func (s *Service) load() error {
