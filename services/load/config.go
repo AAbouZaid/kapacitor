@@ -19,7 +19,7 @@ func NewConfig() Config {
 	return Config{
 		Enabled: false,
 		Hard:    false,
-		Dir:     "/etc/kapacitor/load",
+		Dir:     "./load",
 	}
 }
 

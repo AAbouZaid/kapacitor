@@ -161,6 +161,7 @@ func NewConfig() *Config {
 	c.Stats = stats.NewConfig()
 	c.UDF = udf.NewConfig()
 	c.Deadman = deadman.NewConfig()
+	c.Load = load.NewConfig()
 
 	return c
 }
@@ -184,6 +185,7 @@ func NewDemoConfig() (*Config, error) {
 	c.Task.Dir = filepath.Join(homeDir, ".kapacitor", c.Task.Dir)
 	c.Storage.BoltDBPath = filepath.Join(homeDir, ".kapacitor", c.Storage.BoltDBPath)
 	c.DataDir = filepath.Join(homeDir, ".kapacitor", c.DataDir)
+	c.Load.Dir = filepath.Join(homeDir, ".kapacitor", c.Load.Dir)
 
 	return c, nil
 }
