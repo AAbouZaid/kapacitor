@@ -326,6 +326,9 @@ func (s *Service) loadTask(f string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.items.Set(Item{ID: path.Join("tasks", id)}); err != nil {
+		return err
+	}
 	s.tasks[id] = true
 
 	return nil
@@ -362,10 +365,6 @@ func (s *Service) loadTemplate(f string) error {
 	fn := file.Name()
 	id := strings.TrimSuffix(filepath.Base(fn), filepath.Ext(fn))
 
-	if err := s.items.Set(Item{ID: path.Join("templates", id)}); err != nil {
-		return err
-	}
-
 	l := s.cli.TemplateLink(id)
 	task, _ := s.cli.Template(l, nil)
 	if task.ID == "" {
@@ -389,6 +388,9 @@ func (s *Service) loadTemplate(f string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.items.Set(Item{ID: path.Join("templates", id)}); err != nil {
+		return err
+	}
 	s.templates[id] = true
 
 	return nil
@@ -461,6 +463,9 @@ func (s *Service) loadVars(f string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.items.Set(Item{ID: path.Join("tasks", id)}); err != nil {
+		return err
+	}
 	s.tasks[id] = true
 
 	return nil
@@ -522,12 +527,32 @@ func (s *Service) loadHandler(f string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.handlers[o.ID] = true
+	s.handlers[path.Join(o.Topic, o.ID)] = true
+	if err := s.items.Set(Item{ID: path.Join("handlers", o.Topic, o.ID)}); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (s *Service) removeMissing() error {
+
+	if err := s.removeTasks(); err != nil {
+		return err
+	}
+
+	if err := s.removeTemplates(); err != nil {
+		return err
+	}
+
+	if err := s.removeHandlers(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) removeTasks() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -536,29 +561,51 @@ func (s *Service) removeMissing() error {
 		return err
 	}
 
-	for _, taskID := range diff(s.tasks, loadedTasks) {
-		// Delete tasks
-		_ = taskID
+	for _, id := range diff(s.tasks, loadedTasks) {
+		l := s.cli.TaskLink(id)
+		if err := s.cli.DeleteTask(l); err != nil {
+			return err
+		}
 	}
+
+	return nil
+}
+
+func (s *Service) removeTemplates() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	loadedTemplates, err := s.loadedTemplates()
 	if err != nil {
 		return err
 	}
-	for _, templateID := range diff(s.templates, loadedTemplates) {
-		// Delete templates
-		_ = templateID
+	for _, id := range diff(s.templates, loadedTemplates) {
+		l := s.cli.TemplateLink(id)
+		if err := s.cli.DeleteTemplate(l); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func (s *Service) removeHandlers() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	loadedHandlers, err := s.loadedHandlers()
 	if err != nil {
 		return err
 	}
-	for _, handlerID := range diff(s.handlers, loadedHandlers) {
-		// Delete handler
-		_ = handlerID
+	for _, id := range diff(s.handlers, loadedHandlers) {
+		pair := strings.Split(id, "/")
+		if len(pair) != 2 {
+			return errors.New("expected id to be topicID/handlerID")
+		}
+		l := s.cli.TopicHandlerLink(pair[0], pair[1])
+		if err := s.cli.DeleteTopicHandler(l); err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 
@@ -608,7 +655,7 @@ func (s *Service) loadedHandlers() ([]string, error) {
 	}
 	handlers := []string{}
 	for _, item := range items {
-		handlers = append(handlers, filepath.Base(item.ID))
+		handlers = append(handlers, strings.TrimLeft(item.ID, "handlers/"))
 	}
 
 	return handlers, nil
